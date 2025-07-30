@@ -1,0 +1,188 @@
+version: '3.8'
+
+services:
+  # Nginx负载均衡器
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - crp-router-1
+      - crp-router-2
+      - crp-router-3
+      - crp-router-4
+    networks:
+      - crp-network
+    restart: unless-stopped
+
+  # CRP路由服务实例1
+  crp-router-1:
+    build: .
+    image: crp-router:latest
+    environment:
+      - OVERLAY_GRAPH_PATH=/data/overlay
+      - CACHE_SIZE=4GB
+      - WORKER_THREADS=8
+      - OMP_NUM_THREADS=8
+      - NODE_ID=1
+    volumes:
+      - overlay-data:/data/overlay:ro
+      - road-network:/data/network:ro
+    networks:
+      - crp-network
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 16G
+        reservations:
+          cpus: '2'
+          memory: 8G
+    restart: unless-stopped
+
+  # CRP路由服务实例2
+  crp-router-2:
+    build: .
+    image: crp-router:latest
+    environment:
+      - OVERLAY_GRAPH_PATH=/data/overlay
+      - CACHE_SIZE=4GB
+      - WORKER_THREADS=8
+      - OMP_NUM_THREADS=8
+      - NODE_ID=2
+    volumes:
+      - overlay-data:/data/overlay:ro
+      - road-network:/data/network:ro
+    networks:
+      - crp-network
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 16G
+        reservations:
+          cpus: '2'
+          memory: 8G
+    restart: unless-stopped
+
+  # CRP路由服务实例3
+  crp-router-3:
+    build: .
+    image: crp-router:latest
+    environment:
+      - OVERLAY_GRAPH_PATH=/data/overlay
+      - CACHE_SIZE=4GB
+      - WORKER_THREADS=8
+      - OMP_NUM_THREADS=8
+      - NODE_ID=3
+    volumes:
+      - overlay-data:/data/overlay:ro
+      - road-network:/data/network:ro
+    networks:
+      - crp-network
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 16G
+        reservations:
+          cpus: '2'
+          memory: 8G
+    restart: unless-stopped
+
+  # CRP路由服务实例4
+  crp-router-4:
+    build: .
+    image: crp-router:latest
+    environment:
+      - OVERLAY_GRAPH_PATH=/data/overlay
+      - CACHE_SIZE=4GB
+      - WORKER_THREADS=8
+      - OMP_NUM_THREADS=8
+      - NODE_ID=4
+    volumes:
+      - overlay-data:/data/overlay:ro
+      - road-network:/data/network:ro
+    networks:
+      - crp-network
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 16G
+        reservations:
+          cpus: '2'
+          memory: 8G
+    restart: unless-stopped
+
+  # Redis缓存集群
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 8gb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - crp-network
+    restart: unless-stopped
+
+  # Prometheus监控
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - crp-network
+    restart: unless-stopped
+
+  # Grafana可视化
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - crp-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+# 网络定义
+networks:
+  crp-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# 数据卷定义
+volumes:
+  overlay-data:
+    driver: local
+  road-network:
+    driver: local
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
